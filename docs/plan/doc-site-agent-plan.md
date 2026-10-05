@@ -282,6 +282,55 @@ dogfooding target: the agents that maintain the site use the same skills.
 | Plugin | `claude plugin validate` and eval suite | manifest invalid, eval regressions |
 | Agent output | PR body contains `Closes #n` and a verification checklist | agent-opened PR missing either |
 
+## 6a. Cost model: subscription or API
+
+Every runtime in this plan can bill either way. The choice is made per workflow by
+which secret you hand it, so the two can be mixed.
+
+| Runtime | Subscription (Pro, Max, Team, Enterprise) | API (Claude Console) |
+|---|---|---|
+| GitHub Action | `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. Docs: "If you authenticate with an OAuth token, runs use your Claude subscription instead of API billing." | `ANTHROPIC_API_KEY`, billed per token at list rates |
+| Routines (claude.ai/code) | Only option. "Routines draw down subscription usage the same way interactive sessions do." | Not available |
+| Agent SDK service | OAuth supported | API key, per token |
+
+What that means in practice:
+
+- **Subscription path.** Agent runs come out of the same 5-hour and weekly usage
+  windows as your interactive Claude Code and chat use. The OAuth token is tied to
+  the one person who ran `claude setup-token`, so a shared repo should use an API key
+  or a Console service account via OIDC instead. When the window is exhausted, runs
+  fail unless usage credits are turned on, in which case they continue at metered
+  API rates. A cap on daily scheduled jobs is the main lever.
+- **API path.** Pay per token, no interaction with your personal quota, hard caps via
+  Console workspace spend limits. Predictable and auditable, and the right default
+  for anything scheduled.
+- **GitHub Actions minutes** are charged separately by GitHub on either path. A public
+  repo gets unlimited minutes; a private repo gets a free monthly allowance, then
+  per-minute billing. Agent runs are long-tailed, so set `timeout-minutes` on every job.
+
+Rough API-path estimate for the default design, assuming Opus 5.5 for implement and
+review and Sonnet 5.5 for triage and summaries. These are order-of-magnitude figures,
+not quotes; measure in M1 and revise.
+
+| Job | Frequency | Est. per run | Est. per month |
+|---|---|---|---|
+| Triage | per issue, say 20/month | $0.10 to $0.50 | $2 to $10 |
+| Implement | per approved issue, say 10/month | $1 to $5 | $10 to $50 |
+| PR review | per PR, say 15/month | $0.30 to $1.50 | $5 to $25 |
+| Vendor watch | daily, scripts do the fetching | $0.05 to $0.50 on change days, near zero otherwise | $2 to $10 |
+| Stale sweep | weekly | $0.20 to $1 | $1 to $4 |
+| **Total** | | | **roughly $20 to $100** |
+
+Recommended split: run the vendor watch, stale sweep and PR review on an API key so
+they never touch your subscription and have a hard spend limit. Run triage and
+implement on whichever you prefer. If you already pay for Max, point them at the
+subscription first and watch the `/usage` breakdown; move them to the API key if they
+start crowding out your interactive work.
+
+Sources: https://code.claude.com/docs/en/github-actions (Manage costs),
+https://code.claude.com/docs/en/routines (Usage and limits),
+https://code.claude.com/docs/en/costs.
+
 ## 7. Milestones
 
 Durations assume one person part time with the agents doing most typing.
@@ -357,9 +406,9 @@ Each one changes the plan materially. Defaults are what the plan above assumes.
 4. **Autonomy level.** Should small changes skip the `approved` label and go straight to PR?
    Should any PRs auto-merge? Default: small issues from collaborators skip approval;
    nothing auto-merges except snapshot commits.
-5. **Runtime and budget.** GitHub Actions with an API key is the default. Do you have a
-   monthly budget ceiling? That sets `max_turns`, how many sources we poll daily, and
-   whether the review agent runs on every PR or only agent PRs.
+5. **Runtime and budget.** See §6a. Which plan do you have, and do you want agent runs on
+   your subscription, on an API key, or split as recommended? Is there a monthly
+   ceiling? That sets `max_turns`, polling cadence, and whether review runs on every PR.
 6. **Who files issues.** Only you, also clients, also the public? Default: collaborators
    plus the vendor watch agent. Public filing needs spam controls and a stricter approval gate.
 7. **Plugin shape.** One plugin bundling all playbooks, or several focused plugins
