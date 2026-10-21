@@ -76,10 +76,9 @@ prompts. They are simpler to set up than Actions but the prompt lives outside th
 repo, so they are harder to version and audit. Use them as the fallback, or for the
 vendor watch job if the Actions 60-day rule below becomes a nuisance.
 
-One Actions gotcha that matters for the vendor watch: on public repositories, GitHub
-disables scheduled workflows after 60 days with no repository activity. The
-snapshot commits in §4.2 keep the repo active, which sidesteps this, but it is worth
-a monitoring issue if the schedule ever goes quiet.
+One Actions gotcha to remember if the repo is ever made public: GitHub disables
+scheduled workflows on public repositories after 60 days without activity. It does
+not apply to this private repo. The snapshot commits in §4.2 would keep it active anyway.
 
 ### 2.2 Repository layout
 
@@ -304,9 +303,10 @@ What that means in practice:
 - **API path.** Pay per token, no interaction with your personal quota, hard caps via
   Console workspace spend limits. Predictable and auditable, and the right default
   for anything scheduled.
-- **GitHub Actions minutes** are charged separately by GitHub on either path. A public
-  repo gets unlimited minutes; a private repo gets a free monthly allowance, then
-  per-minute billing. Agent runs are long-tailed, so set `timeout-minutes` on every job.
+- **GitHub Actions minutes** are charged separately by GitHub on either path. This is a
+  private repo, so runs draw on the plan's free monthly allowance and then bill per
+  minute. Agent runs are long-tailed, so set `timeout-minutes` on every job, and
+  expect Actions minutes to be a visible line item next to token spend.
 
 Rough API-path estimate for the default design, assuming Opus 5.5 for implement and
 review and Sonnet 5.5 for triage and summaries. These are order-of-magnitude figures,
@@ -338,7 +338,9 @@ Each milestone ends with something usable.
 
 ### M0. Foundations (week 1)
 - Decide the open questions in §8.
-- Static site generator, `mkdocs.yml` or Astro config, GitHub Pages deploy workflow.
+- Static site generator, `mkdocs.yml` or Astro config, deploy workflow to private
+  hosting (GitHub Pages with access control on Enterprise Cloud, else Cloudflare
+  Pages behind Access or Vercel with SSO).
 - `CLAUDE.md`, `STYLE.md`, frontmatter schema, `check_frontmatter.py`.
 - Labels, issue templates, CODEOWNERS, branch protection on `main`.
 - Seed content: three to five real pages, at least one of each type, so the
@@ -395,9 +397,12 @@ Each milestone ends with something usable.
 
 Each one changes the plan materially. Defaults are what the plan above assumes.
 
-1. **Audience and visibility.** Public site, or private for clients? Default: public
-   repo and GitHub Pages. Private changes hosting (Cloudflare Access, Vercel) and
-   means issues come only from collaborators.
+1. **Audience and visibility.** Answered: internal, private repository. Consequences
+   folded into the plan: private GitHub Pages (needs GitHub Enterprise Cloud; otherwise
+   Cloudflare Access or Vercel with SSO in front of the static build), issues come only
+   from collaborators so the approval gate can be looser, Actions minutes are billed
+   after the free allowance, and the 60-day scheduled-workflow shutoff does not apply.
+   Still to decide: which hosting option, and whether external clients ever get access.
 2. **Site generator.** MkDocs Material (Python, pure Markdown, simplest for agents to edit)
    or Astro Starlight (MDX, more design freedom)? Default: MkDocs Material.
 3. **Vendor scope.** Anthropic docs only to start, or also AWS Bedrock, GCP Vertex,
